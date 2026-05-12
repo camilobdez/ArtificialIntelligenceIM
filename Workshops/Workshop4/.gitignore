@@ -1,0 +1,5 @@
+.env
+db/
+__pycache__/
+*.pyc
+my_rag_output.json
