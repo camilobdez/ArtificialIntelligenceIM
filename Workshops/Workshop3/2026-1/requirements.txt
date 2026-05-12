@@ -1,0 +1,5 @@
+torch>=2.0.0
+matplotlib>=3.7.0
+tokenizers>=0.15.0
+jupyter>=1.0.0
+notebook>=7.0.0
