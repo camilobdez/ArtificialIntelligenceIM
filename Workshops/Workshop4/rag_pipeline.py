@@ -7,6 +7,9 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from typing import List
 
+# load_dotenv con encoding explícito para evitar problemas con BOM en Windows
+load_dotenv(encoding="utf-8-sig")
+
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_qdrant import QdrantVectorStore
 from langchain_core.prompts import ChatPromptTemplate
@@ -16,8 +19,6 @@ from langchain_core.language_models.llms import LLM
 from langchain_core.documents import Document
 from langchain_core.callbacks.manager import CallbackManagerForLLMRun
 from qdrant_client import QdrantClient
-
-load_dotenv()
 
 COLLECTION   = "karpathy_qdrant"
 PERSIST_PATH = "./db/karpathy_qdrant"
