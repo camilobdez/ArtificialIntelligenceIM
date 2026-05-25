@@ -1,0 +1,8 @@
+ultralytics>=8.0.0
+litserve>=0.1.0
+fastapi
+uvicorn
+pillow
+opencv-python
+supervision
+roboflow
