@@ -1,6 +1,8 @@
+Logistics-*/
 datasets/
 runs/
 metrics.json
 __pycache__/
 *.pyc
 .venv/
+.env

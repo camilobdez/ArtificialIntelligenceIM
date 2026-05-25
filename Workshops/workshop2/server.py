@@ -1,63 +1,71 @@
 """
 server.py — LitServe deployment for the fine-tuned logistics YOLOv8 model.
 
+API contract matches the one taught in Lecture 08 (see
+Lecture08/notebooks/deployment/server.py): clients POST a file with the
+form-field name ``request`` and receive a JSON object of the form
+``{"detections": [{"class_id", "class_name", "confidence", "bbox"}]}``.
+
 Usage:
     python server.py
 
-Test:
+Test (matches client.py):
+    python client.py --image path/to/sample.jpg
+
+Or raw curl:
     curl -X POST http://127.0.0.1:8000/predict \
          -H "Content-Type: multipart/form-data" \
-         -F "image=@sample.jpg"
+         -F "request=@sample.jpg"
 """
 
-import io
-from typing import List, Dict, Any
-
-import litserve as ls
 from fastapi import UploadFile
+from litserve import LitAPI, LitServer
 from PIL import Image
 from ultralytics import YOLO
 
-MODEL_PATH = "runs/logistics/y8s/weights/best.pt"
+MODEL_PATH  = "runs/logistics/y8s/weights/best.pt"
 CONF_THRESH = 0.25
 
 
-class LogisticsAPI(ls.LitAPI):
+class LogisticsDetectionAPI(LitAPI):
+    """Object detection on the logistics dataset."""
+
     def setup(self, device: str):
         self.model = YOLO(MODEL_PATH)
-        self.model.to(device)
-        print(f"✅ Model loaded on {device}")
+        print(f"✅ Model loaded ({MODEL_PATH})")
 
-    def decode_request(self, request: Dict[str, Any]) -> Image.Image:
-        if isinstance(request, dict) and "image" in request:
-            f: UploadFile = request["image"]
-            return Image.open(io.BytesIO(f.file.read())).convert("RGB")
-        raise ValueError("Expected multipart/form-data with field 'image'")
+    def decode_request(self, request: UploadFile) -> Image.Image:
+        with Image.open(request.file) as img:
+            return img.convert("RGB")
 
-    def predict(self, image: Image.Image) -> List[Dict[str, Any]]:
-        results = self.model.predict(
-            image, conf=CONF_THRESH, imgsz=640, verbose=False
-        )[0]
+    def predict(self, image: Image.Image):
+        return self.model.predict(image, conf=CONF_THRESH, imgsz=640, verbose=False)
 
+    def encode_response(self, results) -> dict:
         detections = []
-        for box in results.boxes:
-            cls_id = int(box.cls[0].item())
-            detections.append({
-                "class_id":   cls_id,
-                "class_name": results.names[cls_id],
-                "confidence": round(float(box.conf[0].item()), 4),
-                "xyxy":       [round(float(x), 2) for x in box.xyxy[0].tolist()],
-            })
-        return detections
+        if not results:
+            return {"detections": detections}
 
-    def encode_response(self, output: List[Dict[str, Any]]) -> Dict[str, Any]:
-        return {
-            "n_detections": len(output),
-            "detections":   output,
-        }
+        r = results[0]
+        boxes = r.boxes
+        if boxes is None or len(boxes) == 0:
+            return {"detections": detections}
+
+        cls  = boxes.cls.cpu().numpy().astype(int)
+        conf = boxes.conf.cpu().numpy()
+        xyxy = boxes.xyxy.cpu().numpy()
+        names = r.names
+
+        for class_id, confidence, bbox in zip(cls, conf, xyxy):
+            detections.append({
+                "class_id":   int(class_id),
+                "class_name": names[int(class_id)],
+                "confidence": float(confidence),
+                "bbox":       bbox.tolist(),
+            })
+        return {"detections": detections}
 
 
 if __name__ == "__main__":
-    api    = LogisticsAPI()
-    server = ls.LitServer(api, accelerator="auto", max_batch_size=1)
+    server = LitServer(LogisticsDetectionAPI(), accelerator="auto")
     server.run(port=8000)

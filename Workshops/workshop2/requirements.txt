@@ -6,3 +6,6 @@ pillow
 opencv-python
 supervision
 roboflow
+numpy
+requests
+python-dotenv
